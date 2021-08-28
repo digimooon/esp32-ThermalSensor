@@ -1,10 +1,14 @@
 #include "Arduino.h"
 #include <Wire.h>
+#include <WiFi.h>
 #include "MLX90640_API.h"
 #include "MLX90640_I2C_Driver.h"
 
 #define EMMISIVITY 0.95
 #define TA_SHIFT 8 
+
+const char* ssid     = "ESP32_AP_TEST";
+WiFiServer server(80);
 
 paramsMLX90640 mlx90640;
 const byte MLX90640_address = 0x33; //Default 7-bit unshifted address of the MLX90640
@@ -31,14 +35,48 @@ void setup() {
   if (status != 0) Serial.println("Parameter extraction failed");
   MLX90640_SetRefreshRate(MLX90640_address, 0x05); 
   Wire.setClock(800000);
+  
+  WiFi.softAP("ESP32_AP_TEST");
+
+  Serial.println();
+  Serial.print("IPaddress: ");
+  Serial.println(WiFi.softAPIP());
+    
+  server.begin();
 }
 
 void loop(void) {
-  readTempValues();
-  delay(2000);
+   WiFiClient client = server.available();   // listen for incoming clients
+
+  if (client) {                             // if you get a client,
+    Serial.println("New Client.");           // print a message out the serial port
+    while (client.connected()) {            // loop while the client's connected
+      if (client.available()) {             // if there's bytes to read from the client,
+
+        char c = client.read();             // read a byte, then
+        Serial.write(c);                    // print it out the serial monitor
+        client.print(c);
+
+        if (c == 'A'){
+          client.print("Recieved:");
+        }
+
+        if (c == 'B'){
+          float * dataArray;
+          dataArray = TempValues();
+          for (int num=0; num<768; num++)
+          client.printf("%.2f", dataArray[num]);
+          delay(2000);
+        }
+      }
+    }
+    // close the connection:
+    client.stop();
+    Serial.println("Client Disconnected.");
+  }
 }
 
-void readTempValues() {
+float * TempValues() {
   for (byte x = 0 ; x < 2 ; x++) 
   {
     uint16_t mlx90640Frame[834];
@@ -50,21 +88,13 @@ void readTempValues() {
     }
 
     float vdd = MLX90640_GetVdd(mlx90640Frame, &mlx90640);
-    float Ta = MLX90640_GetTa(mlx90640Frame, &mlx90640);
+    float Ta = MLX90640_GetTa(mlx90640Frame, &mlx90640);  //外壳温度
 
-    float tr = Ta - TA_SHIFT; 
+    float tr = Ta - TA_SHIFT; //计算环境温度
 
     MLX90640_CalculateTo(mlx90640Frame, &mlx90640, EMMISIVITY, tr, tempValues);
   }
-  Serial.println("\r\n===========================WaveShare MLX90640 Thermal Camera===============================");
-  for (int i = 0; i < 768; i++) {
-    if (((i % 32) == 0) && (i != 0)) {
-      Serial.println(" ");
-    }
-    Serial.print((int)tempValues[i]);
-    Serial.print(" ");
-  }
-  Serial.println("\r\n===========================WaveShare MLX90640 Thermal Camera===============================");
+  return tempValues;
 }
 
 void Device_Scan() {
