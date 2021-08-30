@@ -7,12 +7,16 @@
 #define EMMISIVITY 0.95
 #define TA_SHIFT 8 
 
-const char* ssid     = "ESP32_AP_TEST";
+const char* ssid     = "Temp";
+const char* password = "12345678";
 WiFiServer server(80);
+WiFiClient client;
 
 paramsMLX90640 mlx90640;
 const byte MLX90640_address = 0x33; //Default 7-bit unshifted address of the MLX90640
 static float tempValues[32 * 24];
+
+TaskHandle_t TaskA;
 
 void setup() {
   Serial.begin(115200);
@@ -33,48 +37,85 @@ void setup() {
   if (status != 0) Serial.println("Failed to load system parameters");
   status = MLX90640_ExtractParameters(eeMLX90640, &mlx90640);
   if (status != 0) Serial.println("Parameter extraction failed");
-  MLX90640_SetRefreshRate(MLX90640_address, 0x05); 
+  MLX90640_SetRefreshRate(MLX90640_address, 0x04);  //温度检测器帧率
   Wire.setClock(800000);
-  
-  WiFi.softAP("ESP32_AP_TEST");
 
-  Serial.println();
-  Serial.print("IPaddress: ");
-  Serial.println(WiFi.softAPIP());
-    
+  WiFi.softAP(ssid);
+  
+//  WiFi.begin(ssid, password);
   server.begin();
 }
 
 void loop(void) {
-   WiFiClient client = server.available();   // listen for incoming clients
+   client = server.available();   // listen for incoming clients
 
   if (client) {                             // if you get a client,
+    bool needConsist = false;
     Serial.println("New Client.");           // print a message out the serial port
     while (client.connected()) {            // loop while the client's connected
       if (client.available()) {             // if there's bytes to read from the client,
 
         char c = client.read();             // read a byte, then
         Serial.write(c);                    // print it out the serial monitor
-        client.print(c);
 
-        if (c == 'A'){
+        if (c == 'A'){  //测试
           client.print("Recieved:");
         }
 
-        if (c == 'B'){
+        if (c == 'B'){  //单张闪照
+          client.write('B');
           float * dataArray;
           dataArray = TempValues();
           for (int num=0; num<768; num++)
-          client.printf("%.2f", dataArray[num]);
+          client.print(dataArray[num]);
           delay(2000);
         }
+
+        if (c == 'C'){  //发送连续动画
+          needConsist = true;
+          
+//          xTaskCreate(  //线程会使读取速率跟不上
+//            consistTrans,
+//            "ConsistTrans",
+//            100000,
+//            (void*)&client,
+//            1,
+//            &TaskA);
+        }
+
+        if (c == 'P'){  //暂停发送
+          needConsist = false;
+        }
+
+        if (c == 'Q'){  //断开连接
+          break;
+        }
       }
+
+      if (needConsist) {  //连续发送
+        client.write('B');
+        float * dataArray;
+        dataArray = TempValues();
+        for (int num=0; num<768; num++)
+        client.print(dataArray[num]);      
+      }
+      
     }
     // close the connection:
     client.stop();
     Serial.println("Client Disconnected.");
   }
 }
+
+//void consistTrans (void *parameter){
+//  while (true){
+//  float * dataArray;
+//  dataArray = TempValues();
+//  for (int num=0; num<768; num++)
+//  (*((WiFiClient*)parameter)).print(dataArray[num]);
+//  delay(250);
+//  }
+//}
 
 float * TempValues() {
   for (byte x = 0 ; x < 2 ; x++) 
