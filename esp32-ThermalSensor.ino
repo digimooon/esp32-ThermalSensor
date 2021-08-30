@@ -7,8 +7,8 @@
 #define EMMISIVITY 0.95
 #define TA_SHIFT 8 
 
-const char* ssid     = "Temp";
-const char* password = "12345678";
+const char* ssid     = "Redmi";
+const char* password = "gzh123456";
 WiFiServer server(80);
 WiFiClient client;
 
@@ -16,7 +16,12 @@ paramsMLX90640 mlx90640;
 const byte MLX90640_address = 0x33; //Default 7-bit unshifted address of the MLX90640
 static float tempValues[32 * 24];
 
-TaskHandle_t TaskA;
+//TaskHandle_t TaskA;
+
+typedef union { //结构体进行float到byte的转化
+    float floatTemp;
+    byte  byteArrTemp[4];
+} uTemp;
 
 void setup() {
   Serial.begin(115200);
@@ -66,8 +71,15 @@ void loop(void) {
           client.write('B');
           float * dataArray;
           dataArray = TempValues();
-          for (int num=0; num<768; num++)
-          client.print(dataArray[num]);
+          for (int num=0; num<768; num++){
+//            uTemp temp;
+//            temp.floatTemp = dataArray[num];
+//            client.write(temp.byteArrTemp, 4);
+            client.write((uint8_t*) &dataArray[num], 4);
+          }
+          
+//          for (int num=0; num<768; num++)
+//          client.printf("%.2f",dataArray[num]);
           delay(2000);
         }
 
@@ -83,21 +95,30 @@ void loop(void) {
 //            &TaskA);
         }
 
-        if (c == 'P'){  //暂停发送
-          needConsist = false;
-        }
+        if (c == 'D')
+          MLX90640_SetRefreshRate(MLX90640_address, 0x04);
 
-        if (c == 'Q'){  //断开连接
+        if (c == 'E')
+          MLX90640_SetRefreshRate(MLX90640_address, 0x05);
+
+        if (c == 'P') //暂停发送
+          needConsist = false;
+
+        if (c == 'Q') //断开连接
           break;
-        }
       }
 
       if (needConsist) {  //连续发送
         client.write('B');
         float * dataArray;
         dataArray = TempValues();
-        for (int num=0; num<768; num++)
-        client.print(dataArray[num]);      
+        for (int num=0; num<768; num++){
+          uTemp temp;
+          temp.floatTemp = dataArray[num];
+          client.write(temp.byteArrTemp, 4);
+        }
+          
+//        client.printf("%.2f",dataArray[num]);      
       }
       
     }
