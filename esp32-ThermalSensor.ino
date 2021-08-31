@@ -15,6 +15,7 @@ WiFiClient client;
 paramsMLX90640 mlx90640;
 const byte MLX90640_address = 0x33; //Default 7-bit unshifted address of the MLX90640
 static float tempValues[32 * 24];
+static uint8_t sendArray[32 * 24 * 4];
 
 //TaskHandle_t TaskA;
 
@@ -45,9 +46,9 @@ void setup() {
   MLX90640_SetRefreshRate(MLX90640_address, 0x04);  //温度检测器帧率
   Wire.setClock(800000);
 
-  WiFi.softAP(ssid);
+//  WiFi.softAP(ssid);
   
-//  WiFi.begin(ssid, password);
+  WiFi.begin(ssid, password);
   server.begin();
 }
 
@@ -75,8 +76,9 @@ void loop(void) {
 //            uTemp temp;
 //            temp.floatTemp = dataArray[num];
 //            client.write(temp.byteArrTemp, 4);
-            client.write((uint8_t*) &dataArray[num], 4);
+            memcpy(sendArray + num*4, (uint8_t*) &dataArray[num], 4);
           }
+          client.write(sendArray, 4*768);
           
 //          for (int num=0; num<768; num++)
 //          client.printf("%.2f",dataArray[num]);
@@ -113,10 +115,11 @@ void loop(void) {
         float * dataArray;
         dataArray = TempValues();
         for (int num=0; num<768; num++){
-          uTemp temp;
-          temp.floatTemp = dataArray[num];
-          client.write(temp.byteArrTemp, 4);
+//          uTemp temp;
+//          temp.floatTemp = dataArray[num];
+          memcpy(sendArray + num*4, (uint8_t*) &dataArray[num], 4);
         }
+        client.write(sendArray, 4*768);
           
 //        client.printf("%.2f",dataArray[num]);      
       }
@@ -155,6 +158,10 @@ float * TempValues() {
     float tr = Ta - TA_SHIFT; //计算环境温度
 
     MLX90640_CalculateTo(mlx90640Frame, &mlx90640, EMMISIVITY, tr, tempValues);
+
+    MLX90640_BadPixelsCorrection((&mlx90640)->brokenPixels, tempValues, 1, &mlx90640);
+
+    MLX90640_BadPixelsCorrection((&mlx90640)->outlierPixels, tempValues, 1, &mlx90640);
   }
   return tempValues;
 }
