@@ -4,11 +4,12 @@
 #include "MLX90640_API.h"
 #include "MLX90640_I2C_Driver.h"
 
-#define EMMISIVITY 0.95
 #define TA_SHIFT 8 
 
-const char* ssid     = "Redmi";
-const char* password = "gzh123456";
+float EMMISIVITY = 0.95f;
+
+const char* ssid     = "Temp";
+const char* password = "12345678";
 WiFiServer server(80);
 WiFiClient client;
 
@@ -102,6 +103,18 @@ void loop(void) {
 
         if (c == 'E')
           MLX90640_SetRefreshRate(MLX90640_address, 0x05);
+
+          
+        if (c == 'L')
+          EMMISIVITY = 0.84f;
+
+          
+        if (c == 'M')
+          EMMISIVITY = 0.95f;
+
+          
+        if (c == 'H')
+          EMMISIVITY = 0.97f;
 
         if (c == 'P') //暂停发送
           needConsist = false;
